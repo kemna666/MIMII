@@ -1,13 +1,10 @@
 # 储存数据集的路径
 data:
   dataset: 'MIMII'
-  pkl_file_path: './data/data.pkl'
+  file_path: './data/data.pkl'
   batch_size: 32
-
-# 划分数据
-spilt:
-  testsize: 0.2
-  random_state: 42
+  test_size: 0.2
+  random_seed: 42
 # 模型
 model:
   model: 'CNN'
@@ -15,7 +12,7 @@ model:
   hidden_dim: 128
 # 训练参数
 train:
-  epochs: 15
+  epoches: 100
   loss: 'CrossEntropyLoss'
 optimizer:
   optim: 'Adam'

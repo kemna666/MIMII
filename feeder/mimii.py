@@ -17,9 +17,13 @@ class MIMIIDataset(Dataset):
     
     def __getitem__(self, idx):
         # 根据索引idx返回一个样本的特征和标签
-        mfcc_features = self.merged_data[idx][0]
-        device_index = self.merged_data[idx][1]
-        label_index =   self.merged_data[idx][2]
+        mfcc_features = self.merged_data[idx][0][0]
+        device_index = self.merged_data[idx][0][1]
+        label_index =   self.merged_data[idx][1]
        # 将MFCC特征转换为Tensor
         mfcc_features = torch.tensor(mfcc_features, dtype=torch.float32).unsqueeze(0)
-        return Data(x=mfcc_features, edge_index=label_index, y=device_index)
+        return Data(
+                    x=mfcc_features.detach().clone() if isinstance(mfcc_features, torch.Tensor) else torch.tensor(mfcc_features),
+                    edge_index=label_index,
+                    y=torch.tensor(device_index, dtype=torch.long).detach().clone()
+                )
