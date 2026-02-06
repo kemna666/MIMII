@@ -9,7 +9,8 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.data import Batch
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from net.net_dict import model_dict
+from net.CNN import CNN
+from net.DenseNet import DenseNet
 from feeder.mimii import MIMIIDataset
 
 optimizer_dict = {'SGD':optim.SGD,'Adam':optim.Adam}
@@ -20,7 +21,8 @@ class Process():
         with open(file_path,'r') as file:
             config = yaml.safe_load(file)
             self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-            self.model = model_dict[config['model']['model']](input_dim=13,hidden_dim=128,output_dim=13,length=313).to(self.device)
+            self.model = self.get_model(config['model']).to(self.device)
+            print(f"模型是否在GPU: {next(self.model.parameters()).is_cuda}")  # 应该输出True
             self.optimizer = optimizer_dict[config['optimizer']['optim']](self.model.parameters(),lr=config['optimizer']['lr'])
             self.dataset=MIMIIDataset(config['data']['file_path'])
             self.crition = crition_dict[config['train']['loss']]()
@@ -32,7 +34,7 @@ class Process():
             self.test_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False, collate_fn=self.collate_fn)
             
             self.writer = SummaryWriter(
-            log_dir=f'./runs/MIMII_CNN-{time.time()}',
+            log_dir=f'./runs/MIMII_{config['model']['model']}-{time.time()}',
             comment=f'_lr{config["optimizer"]["lr"]}_bs{self.batch_size}_ep{self.epoches}'
             )
             
@@ -42,7 +44,20 @@ class Process():
         self.train()
         self.accuracy()
        #self.plot()
-
+    def get_model(self,config):
+        if config['model'] == 'CNN':
+            return CNN(input_dim=config['input_dim'],hidden_dim=config['hidden_dim'],output_dim=config['output_dim'],length=config['length']).to(self.device)
+        elif config['model'] == 'DenseNet':
+            return DenseNet(input_dim=13,         
+            num_init_features=32,       # 初始通道32（适配128x128输入）
+            block_config=[4,4,4],       # 3个DenseBlock，每个4层（轻量版）
+            batchnorm_size=4,           # Bottleneck倍数4
+            growth_rate=12,             # 增长率12
+            drop_rate=0.2,              # Dropout 20%
+            compression_rate=0.5,       # 压缩率50%
+            num_classes=13 ,              # 二分类：正常/异常,
+            device = self.device).to(self.device)
+        
     def train(self):
         
         for self.epoch in tqdm(range(self.epoches),desc=f'epoch:',unit='epoch'):
@@ -53,7 +68,7 @@ class Process():
             for data in train_bar:
                     device_index = data.y.to(self.device)  # 输入设备索引
                     mfcc_features = data.x.to(self.device)  # 输入MFCC特征
-                    output = self.model(mfcc_features, device_index)  # 输出标签
+                    output = self.model(mfcc_features)  # 输出标签
                     train_loss = self.crition(output, device_index) 
                     train_loss.backward()
                     self.optimizer.step()
@@ -78,7 +93,7 @@ class Process():
                 for data in test_bar:
                     device_index = data.y.to(self.device)  # 输入设备索引
                     mfcc_features = data.x.to(self.device)  # 输入MFCC特征
-                    output = self.model(mfcc_features, device_index,mode='train')  # 输出标签
+                    output = self.model(mfcc_features,mode='train')  # 输出标签
                     _, predicted = torch.max(output.data, 1)
                     total += device_index.size(0)
                     correct += (predicted == device_index).sum().item()
@@ -88,37 +103,12 @@ class Process():
             self.test_accuracy.append(acc)
             return acc
 
-    def plot(self):
-        # 绘制训练损失和测试精度曲线（双坐标轴，更直观）
-        fig, ax1 = plt.subplots(figsize=(10, 6))
-        
-        # 左轴：训练损失
-        ax1.set_xlabel('Epoch', fontsize=12)
-        ax1.set_ylabel('Train Loss', color='red', fontsize=12)
-        ax1.plot(self.epoch_data, self.train_loss_list, 'r-', label='Train Loss')
-       # ax1.tick_params(axis='y', labelcolor='red')
-        ax1.legend(loc='upper left')
-        
-        # 右轴：测试精度
-        ax2 = ax1.twinx()
-        ax2.set_ylabel('Test Accuracy', color='blue', fontsize=12)
-        ax2.plot(self.epoch_data, self.test_accuracy, 'b-', label='Test Accuracy')
-        ax2.tick_params(axis='y', labelcolor='blue')
-        ax2.legend(loc='upper right')
-        
-        # 保存并显示图片
-        plt.title('Train Loss and Test Accuracy', fontsize=14)
-        plt.tight_layout()  # 防止标签重叠
-        save_path = f'./output/accuracy_loss_{int(time.time())}.png'
-        plt.savefig(save_path)
-        print(f'训练曲线已保存至：{save_path}')
-        plt.show()
-
     def collate_fn(batch):
         batch = [data for data in batch if data is not None]
         return Batch.from_data_list(batch)
 
 
 
-if __name__=='__main__':
-    Process('config/config.yaml')
+# 测试使用示例
+if __name__ == "__main__":
+    Process('config/densenet.yaml')

@@ -1,4 +1,3 @@
-# 储存数据集的路径
 data:
   dataset: 'MIMII'
   file_path: './data/data.pkl'
@@ -7,7 +6,7 @@ data:
   random_seed: 42
 # 模型
 model:
-  model: 'CNN'
+  model: 'DenseNet'
   input_dim: 13
   hidden_dim: 128
   output_dim: 13
