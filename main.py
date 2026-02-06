@@ -48,14 +48,14 @@ class Process():
         if config['model'] == 'CNN':
             return CNN(input_dim=config['input_dim'],hidden_dim=config['hidden_dim'],output_dim=config['output_dim'],length=config['length']).to(self.device)
         elif config['model'] == 'DenseNet':
-            return DenseNet(input_dim=13,         
-            num_init_features=32,       # 初始通道32（适配128x128输入）
-            block_config=[4,4,4],       # 3个DenseBlock，每个4层（轻量版）
-            batchnorm_size=4,           # Bottleneck倍数4
-            growth_rate=12,             # 增长率12
-            drop_rate=0.2,              # Dropout 20%
-            compression_rate=0.5,       # 压缩率50%
-            num_classes=13 ,              # 二分类：正常/异常,
+            return DenseNet(input_dim=config['input_dim'],         
+            num_init_features=config['num_init_features'],       # 初始通道32（适配128x128输入）
+            block_config=config['block_config'],       # 3个DenseBlock，每个4层（轻量版）
+            batchnorm_size=config['batchnorm_size'],           # Bottleneck倍数4
+            growth_rate=config['growth_rate'],             # 增长率12
+            drop_rate=config['drop_rate'],              # Dropout 20%
+            compression_rate=config['compression_rate'],       # 压缩率50%
+            num_classes=config['num_classes'] ,              # 二分类：正常/异常,
             device = self.device).to(self.device)
         
     def train(self):

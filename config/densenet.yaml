@@ -4,13 +4,16 @@ data:
   batch_size: 32
   test_size: 0.2
   random_seed: 42
-# 模型
 model:
   model: 'DenseNet'
-  input_dim: 13
-  hidden_dim: 128
-  output_dim: 13
-  length: 313
+  input_dim: 13         
+  num_init_features: 32       # 初始通道32（适配128x128输入）
+  block_config: [4,4,4]       # 3个DenseBlock，每个4层（轻量版）
+  batchnorm_size: 4           # Bottleneck倍数4
+  growth_rate: 12             # 增长率12
+  drop_rate: 0.2              # Dropout 20%
+  compression_rate: 0.5       # 压缩率50%
+  num_classes: 13
 # 训练参数
 train:
   epoches: 100
