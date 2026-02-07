@@ -1,3 +1,4 @@
 data/*
 output/*
 runs
+inference_results.txt

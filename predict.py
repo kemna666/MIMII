@@ -6,8 +6,10 @@ import numpy as np
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from datetime import datetime
-from .net import CNN,DenseNet
-from .feeder.mimii import MIMIIDataset
+# 注意：这里需要根据你的实际路径导入模型和数据集类
+from net.CNN import CNN
+from net.DenseNet import DenseNet
+from feeder.mimii import MIMIIDataset
 
 
 class AudioPredictor:
@@ -44,7 +46,7 @@ class AudioPredictor:
             
     def _load_weights(self):
         try:
-            checkpoint_path = f'{self.model_save_dir}/final_model.pth'
+            checkpoint_path = f'{self.model_save_dir}/{"final" if os.path.exists(f"{self.model_save_dir}/final_model.pth") else "best"}_model.pth'
             checkpoint = torch.load(checkpoint_path, map_location=self.device)
             # 处理两种常见的权重保存格式
             if 'model_state_dict' in checkpoint:
@@ -69,7 +71,10 @@ class AudioPredictor:
             )
             # 标准化
             mfcc = (mfcc - np.mean(mfcc)) / (np.std(mfcc) + 1e-8)
-            mfcc_tensor = torch.tensor(mfcc, dtype=torch.float32).unsqueeze(0)
+            # ========== 关键修改1 ==========
+            # 确保维度是 [1, n_mfcc, time_steps] (通道数=1)
+            # 原代码: mfcc_tensor = torch.tensor(mfcc, dtype=torch.float32).unsqueeze(0)
+            mfcc_tensor = torch.tensor(mfcc, dtype=torch.float32).unsqueeze(0)  # 添加通道维度 [1, 13, time_steps]
             return mfcc_tensor
         except Exception as e:
             raise RuntimeError(f"音频预处理失败 {audio_path}: {str(e)}")
@@ -121,48 +126,57 @@ class AudioPredictor:
             return False
 
     def infer_batch(self, input_path, device_idx=1, class_names=None, batch_size=None):
-        # 获取所有音频文件路径
+        # 获取所有音频路径
         audio_paths = self._get_audio_files(input_path)
-        
         batch_size = batch_size or self.batch_size
-        self.model.eval()  
+        self.model.eval()
 
+        # 1. 预处理所有音频
         features_list = []
         for audio_path in tqdm(audio_paths, desc="预处理音频"):
             mfcc = self.preprocess_audio(audio_path)
             features_list.append(mfcc)
-        
 
-        mfcc_tensor = torch.cat(features_list, dim=0)
-        dev_idx_tensor = torch.tensor([device_idx] * len(audio_paths), dtype=torch.int64)
-        dataset = MIMIIDataset(mfcc_tensor, dev_idx_tensor)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        # ========== 关键修改2 ==========
+        # 原代码: all_features = torch.cat(features_list, dim=0).to(self.device)
+        # 修正：确保拼接后维度为 [batch_size, 1, n_mfcc, time_steps]
+        all_features = torch.cat(features_list, dim=0).to(self.device)
+        # 额外检查并修正通道维度（防止意外的维度错误）
+        if all_features.dim() == 3:
+            all_features = all_features.unsqueeze(1)  # 添加通道维度
+        elif all_features.size(1) != 1:
+            # 如果通道数不是1，取第一个通道（兼容处理）
+            all_features = all_features[:, 0:1, :, :]
         
-        # 3. 批量推理
+        total = len(all_features)
+        num_batches = (total + batch_size - 1) // batch_size  # 向上取整
+
         results = []
-        idx = 0
-        with torch.no_grad():  
-            for mfcc_features, dev_idx in tqdm(dataloader, desc="批量推理", unit="batch"):
-                mfcc_features = mfcc_features.to(self.device)
-                dev_idx = dev_idx.to(self.device)
+        with torch.no_grad():
+            for b in tqdm(range(num_batches), desc="批量推理", unit="batch"):
+                # 取当前批次
+                start = b * batch_size
+                end = min(start + batch_size, total)
+                batch_feat = all_features[start:end]
 
-                outputs = self.model(mfcc_features) 
-                _, predictions = torch.max(outputs.data, 1)
-                confidences = torch.softmax(outputs, dim=1)[range(len(predictions)), predictions].cpu().numpy()
-                
-                for pred, conf in zip(predictions.cpu().numpy(), confidences):
+                # 推理
+                outputs = self.model(batch_feat)
+                _, preds = torch.max(outputs, 1)
+                confs = torch.softmax(outputs, dim=1)[range(len(preds)), preds].cpu().numpy()
+
+                # 组装结果
+                for i_in_batch, (p, c) in enumerate(zip(preds.cpu().numpy(), confs)):
+                    idx = start + i_in_batch
                     result = {
                         'audio_path': audio_paths[idx],
-                        'device_idx': int(dev_idx[idx % len(dev_idx)].cpu().numpy()),
-                        'predicted_label_idx': int(pred),
-                        'confidence': round(float(conf), 4),
-                        'predicted_label_name': class_names[int(pred)] if class_names else None
+                        'device_idx': device_idx,
+                        'predicted_label_idx': int(p),
+                        'confidence': round(float(c), 4),
+                        'predicted_label_name': class_names[int(p)] if class_names else None
                     }
                     results.append(result)
-                    idx += 1
-        
-        return results
 
+        return results
 
 if __name__ == '__main__':
     # 配置文件路径
@@ -183,4 +197,3 @@ if __name__ == '__main__':
     )
     
     predictor.save_results_to_txt(results, SAVE_PATH)
-    
