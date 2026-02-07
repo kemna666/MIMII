@@ -1,13 +1,10 @@
 from torch.utils.data import Dataset
 import torch
-import pickle
+
 class MIMIIDataset(Dataset):    
-    def __init__(self, pkl_file_path):
-        # 加载.pkl文件中的数据
-        with open(pkl_file_path, 'rb') as file:
-            self.data = pickle.load(file)
+    def __init__(self, data):
         self.merged_data =[]
-        for snr_data in self.data:
+        for snr_data in data:
             self.merged_data.extend(snr_data)
     
     def __len__(self):

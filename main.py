@@ -3,6 +3,7 @@ import torch
 import yaml
 import time
 import os
+import pickle
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
@@ -19,26 +20,26 @@ crition_dict = {'CrossEntropyLoss':nn.CrossEntropyLoss}
 class Process():
     def __init__(self,file_path):
         with open(file_path,'r') as file:
-            config = yaml.safe_load(file)
-            self.config = config
+            self.config = yaml.safe_load(file)
             self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-            self.model = self.get_model(config['model']).to(self.device)
-            self.optimizer = optimizer_dict[config['optimizer']['optim']](self.model.parameters(),lr=config['optimizer']['lr'])
-            self.dataset=MIMIIDataset(config['data']['file_path'])
-            self.crition = crition_dict[config['train']['loss']]()
-            self.epoches = config['train']['epoches']
-            self.batch_size = config['data']['batch_size']
-            self.save_dir = 'output'
-            self.test_size = config['data']['test_size']
-            self.train_data, self.test_data = train_test_split(self.dataset, test_size=self.test_size,random_state=config['data']['random_seed'])
+            self.model = self.get_model(self.config['model']).to(self.device)
+            self.optimizer = optimizer_dict[self.config['optimizer']['optim']](self.model.parameters(),lr=self.config['optimizer']['lr'])     
+            self.crition = crition_dict[self.config['train']['loss']]()
+            self.epoches = self.config['train']['epoches']
+            self.batch_size = self.config['data']['batch_size']
+            self.save_dir = self.config['model_save_dir']
+            self.test_size = self.config['data']['test_size'] 
+            self.writer = SummaryWriter(
+            log_dir=f'./runs/MIMII_{self.config['model']['model']}-{time.asctime( time.localtime(time.time()) )}',
+            comment=f'_lr{self.config["optimizer"]["lr"]}_bs{self.batch_size}_ep{self.epoches}'
+            )
+        # 加载.pkl文件中的数据
+        with open(self.config['data']['file_path'], 'rb') as file:
+            data = pickle.load(file)
+            self.dataset=MIMIIDataset(data)
+            self.train_data, self.test_data = train_test_split(self.dataset, test_size=self.test_size,random_state=self.config['data']['random_seed'])
             self.train_loader = DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True)
             self.test_loader = DataLoader(self.test_data, batch_size=self.batch_size, shuffle=False)
-            
-            self.writer = SummaryWriter(
-            log_dir=f'./runs/MIMII_{config['model']['model']}-{time.asctime( time.localtime(time.time()) )}',
-            comment=f'_lr{config["optimizer"]["lr"]}_bs{self.batch_size}_ep{self.epoches}'
-            )
-            
         self.epoch_data = []
         self.test_accuracy = []
         self.train_loss_list = []
@@ -47,18 +48,18 @@ class Process():
         self.train()
         self.accuracy()
 
-    def get_model(self,config):
-        if config['model'] == 'CNN':
-            return CNN(input_dim=config['input_dim'],hidden_dim=config['hidden_dim'],output_dim=config['output_dim'],length=config['length']).to(self.device)
-        elif config['model'] == 'DenseNet':
-            return DenseNet(input_dim=config['input_dim'],         
-            num_init_features=config['num_init_features'],       # 初始通道32（适配128x128输入）
-            block_config=config['block_config'],       # 3个DenseBlock，每个4层（轻量版）
-            batchnorm_size=config['batchnorm_size'],           # Bottleneck倍数4
-            growth_rate=config['growth_rate'],             # 增长率12
-            drop_rate=config['drop_rate'],              # Dropout 20%
-            compression_rate=config['compression_rate'],       # 压缩率50%
-            num_classes=config['num_classes'] ,              # 二分类：正常/异常,
+    def get_model(self,model_config):
+        if model_config['model'] == 'CNN':
+            return CNN(input_dim=model_config['input_dim'],hidden_dim=model_config['hidden_dim'],output_dim=model_config['output_dim'],length=model_config['length']).to(self.device)
+        elif model_config['model'] == 'DenseNet':
+            return DenseNet(input_dim=model_config['input_dim'],         
+            num_init_features=model_config['num_init_features'],       # 初始通道32（适配128x128输入）
+            block_config=model_config['block_config'],       # 3个DenseBlock，每个4层（轻量版）
+            batchnorm_size=model_config['batchnorm_size'],           # Bottleneck倍数4
+            growth_rate=model_config['growth_rate'],             # 增长率12
+            drop_rate=model_config['drop_rate'],              # Dropout 20%
+            compression_rate=model_config['compression_rate'],       # 压缩率50%
+            num_classes=model_config['num_classes'] ,              # 二分类：正常/异常,
             device = self.device).to(self.device)
         
     def train(self):

@@ -19,3 +19,5 @@ train:
 optimizer:
   optim: 'Adam'
   lr: 0.00001
+
+model_save_dir: 'output'
