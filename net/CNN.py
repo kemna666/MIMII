@@ -7,9 +7,9 @@ class CNN(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.output_dim = output_dim
-        self.Conv1 = nn.Conv1d(input_dim, hidden_dim, kernel_size=7, stride=1, padding=1)
-        self.Conv2 = nn.Conv1d(hidden_dim, output_dim, kernel_size=3, stride=1, padding=1)
-        self.pool = nn.MaxPool1d(kernel_size=3, stride=2)
+        self.Conv1 = nn.Conv2d(input_dim, hidden_dim, kernel_size=7, stride=1, padding=1)
+        self.Conv2 = nn.Conv2d(hidden_dim, output_dim, kernel_size=3, stride=1, padding=1)
+        self.pool = nn.MaxPool2d(kernel_size=3, stride=2)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(p=0.5)
         conv1_out_length = (length + 2*1 - 7) // 1 + 1

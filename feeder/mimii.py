@@ -1,5 +1,4 @@
 from torch.utils.data import Dataset
-from torch_geometric.data import Data
 import torch
 import pickle
 class MIMIIDataset(Dataset):    
@@ -18,12 +17,8 @@ class MIMIIDataset(Dataset):
     def __getitem__(self, idx):
         # 根据索引idx返回一个样本的特征和标签
         mfcc_features = self.merged_data[idx][0][0]
-        device_index = self.merged_data[idx][0][1]
-        label_index =   self.merged_data[idx][1]
+        device_index = torch.tensor(self.merged_data[idx][0][1])
+        label_index =   torch.tensor(self.merged_data[idx][1],dtype=torch.long)
        # 将MFCC特征转换为Tensor
         mfcc_features = torch.tensor(mfcc_features, dtype=torch.float32).unsqueeze(0)
-        return Data(
-                    x=mfcc_features.detach().clone() if isinstance(mfcc_features, torch.Tensor) else torch.tensor(mfcc_features),
-                    edge_index=label_index,
-                    y=torch.tensor(device_index, dtype=torch.long).detach().clone()
-                )
+        return mfcc_features,device_index,label_index

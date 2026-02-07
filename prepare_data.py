@@ -15,7 +15,7 @@ labels = ['abnormal', 'normal']
 # 定义映射字典
 snr_map = {'-6db': 1, '0db': 2, '6db': 3}
 device_map = {'fan': 1, 'pump': 2, 'slider': 3, 'valve': 4}
-label_map = {'abnormal': -1, 'normal': 1}
+label_map = {'abnormal': 0, 'normal': 1}
     
 
 #获取文件列表
@@ -81,8 +81,6 @@ def extract_data(file_list,batch_size):
     # 音频数组：(样本数, 160000)，float32
     mfcc_mmap.flush()
     label_mmap.flush()
-    print(f"[Success] 原始音频数组维度：{mfcc_mmap.shape}")
-    print(f"[Success] 标签数组维度：{label_mmap.shape}")
     return mfcc_mmap,label_mmap
 
 def generate_pkl(mfcc_data,label_data):
