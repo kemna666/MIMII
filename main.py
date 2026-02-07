@@ -161,4 +161,4 @@ class Process():
 
 # 测试使用示例
 if __name__ == "__main__":
-    Process('config/densenet.yaml')
+    Process('config/config.yaml')
